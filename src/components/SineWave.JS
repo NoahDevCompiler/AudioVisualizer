@@ -1,8 +1,6 @@
 import p5 from 'p5'
 import { Howl, Howler } from 'howler';
 
-
-
 export default function createP5Sketch(containerId) {
   const sketch = (p) => {
     let sound
@@ -37,7 +35,7 @@ export default function createP5Sketch(containerId) {
       p.angleMode(p.DEGREES);
 
       sound = new Howl({
-        src: ['src/assets/21sav.mp3'],
+        src: ['src/assets/burnin.mp3'],
         volume: 0.5,
         loop: true,
         onload: setupAudioAnalyser,
@@ -176,8 +174,9 @@ export default function createP5Sketch(containerId) {
         //let deformation = p.map(noiseValue, 0, 1, deformationFactor, -deformationFactor);
         let deformation = p.map(noiseValue, 0, -1, deformationFactor, deformationFactor);
         let deformFactor = 1 + deformation * p.sin(particle.phi * 2) * p.cos(particle.theta * 2);
-
+        let liftFactor = 1 + particleDeform * p.sin(particle.phi * 3) * p.cos(particle.theta * 3);
         let newRadius = radius + deformFactor;
+        newRadius += liftFactor * 8
 
         let newX = newRadius * p.sin(particle.theta) * p.cos(particle.phi);
         let newY = newRadius * p.sin(particle.theta) * p.sin(particle.phi);
@@ -185,7 +184,7 @@ export default function createP5Sketch(containerId) {
         //high frequence transformation
         particleDeform = p.map(noiseValue, 0, 1, -bounceFactor, bounceFactor)
 
-        let liftFactor = 1 + particleDeform * p.sin(particle.phi * 3) * p.cos(particle.theta * 3);
+     
         let threshold = bass / 255 * 0.1;
         let Intensity = 0;
         let mappedIntense = p.map(Intensity, threshold, 0, 5, -threshold, threshold)
@@ -194,7 +193,7 @@ export default function createP5Sketch(containerId) {
         let liftedY = liftedRadius * p.sin(particle.theta) * p.sin(particle.phi);
         let liftedZ = liftedRadius * p.cos(particle.theta);
 
-        p.vertex(liftedX, liftedY, liftedZ);
+        p.vertex(newX, newY, newZ);
       }
 
       p.stroke(red, green, blue)

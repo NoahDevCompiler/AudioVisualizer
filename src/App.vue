@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import createP5Sketch from "./components/SineWave.Js"
+import createP5Sketch from "./components/Spikesphere.Js"
 const canvasRef = ref(null);
 
 onMounted(() => {
