@@ -9,7 +9,7 @@ export default function createP5Sketch(containerId) {
 
         let particles = [];
         let totalParticles = 10000;
-        let baseRadius = 300; // Reduced base radius
+        let radius = 600;
         let noiseScale = 0.2;
         let deformationFactor = 0;
         let particleDeform = 0;
@@ -22,33 +22,15 @@ export default function createP5Sketch(containerId) {
         let z;
 
         let bass = 0;
-        
-        // Dodecahedron parameters
-        const goldenRatio = (1 + Math.sqrt(5)) / 2;
-        const dodecahedronVertices = [
-
-            [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1],
-            [-1, 1, 1], [-1, 1, -1], [-1, -1, 1], [-1, -1, -1],
-            [0, 1/goldenRatio, goldenRatio], [0, 1/goldenRatio, -goldenRatio],
-            [0, -1/goldenRatio, goldenRatio], [0, -1/goldenRatio, -goldenRatio],
-            [1/goldenRatio, goldenRatio, 0], [1/goldenRatio, -goldenRatio, 0],
-            [-1/goldenRatio, goldenRatio, 0], [-1/goldenRatio, -goldenRatio, 0],
-            [goldenRatio, 0, 1/goldenRatio], [goldenRatio, 0, -1/goldenRatio],
-            [-goldenRatio, 0, 1/goldenRatio], [-goldenRatio, 0, -1/goldenRatio]
-        ].map(v => {
-            // Normalize the vertices to unit length
-            const length = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
-            return [v[0]/length, v[1]/length, v[2]/length];
-        });
 
         var red = 255;
         var green = 255;
         var blue = 255;
 
         let bassHistory = [];
-        let maxDeformationRadius = baseRadius * 1.2; // Maximum allowed radius during deformation
 
         p.setup = () => {
+
             p.createCanvas(p.displayWidth, p.displayHeight, p.WEBGL).parent(containerId);
             p.angleMode(p.DEGREES);
 
@@ -57,30 +39,20 @@ export default function createP5Sketch(containerId) {
                 volume: 0.5,
                 loop: true,
                 onload: setupAudioAnalyser,
+
             });
 
-            // Initialize particles on a sphere
             for (let i = 0; i < totalParticles; i++) {
                 theta = p.random(0, 360);
                 phi = p.random(0, 360);
 
-                x = baseRadius * p.sin(theta) * p.cos(phi);
-                y = baseRadius * p.sin(theta) * p.sin(phi);
-                z = baseRadius * p.cos(theta);
+                x = radius * p.sin(theta) * p.cos(phi);
+                y = radius * p.sin(theta) * p.sin(phi);
+                z = radius * p.cos(theta);
 
-                particles.push({ 
-                    x, y, z, 
-                    theta, phi,
-                    originalX: x,
-                    originalY: y,
-                    originalZ: z,
-                    targetX: x,
-                    targetY: y,
-                    targetZ: z
-                });
+                particles.push({ x, y, z, theta, phi });
             }
         };
-
         function setupAudioAnalyser() {
             let audioCtx = Howler.ctx;
             analyser = audioCtx.createAnalyser();
@@ -91,31 +63,6 @@ export default function createP5Sketch(containerId) {
             frequencyData = new Uint8Array(analyser.frequencyBinCount);
         }
 
-        function findClosestDodecahedronVertex(x, y, z) {
-            let closestVertex = null;
-            let minDistance = Infinity;
-            
-            // Normalize input vector
-            const inputLength = Math.sqrt(x*x + y*y + z*z);
-            const nx = x / inputLength;
-            const ny = y / inputLength;
-            const nz = z / inputLength;
-            
-            for (let vertex of dodecahedronVertices) {
-                const [vx, vy, vz] = vertex;
-                const dx = nx - vx;
-                const dy = ny - vy;
-                const dz = nz - vz;
-                const distance = dx*dx + dy*dy + dz*dz;
-                
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    closestVertex = vertex;
-                }
-            }
-            
-            return closestVertex;
-        }
 
         p.mousePressed = () => {
             if (!sound) return;
@@ -137,103 +84,121 @@ export default function createP5Sketch(containerId) {
         };
 
         p.draw = () => {
-            let fastRotation = p.frameCount * 0.5;
+            let fastRotation = p.frameCount * 0.5
 
             p.camera(200, -400, 800);
             p.background(0, 0);
             p.rotateY(fastRotation);
 
-            p.scale(1.5); // Reduced scale
+            p.scale(2);
             p.noFill();
             p.strokeWeight(2);
 
             p.beginShape(p.POINTS);
 
+
+            //p.stroke(100.8, 40, 255)
+
+            //p.stroke(r, g, b)
+
+            let timeFactor = p.frameCount * 0.01;
+            let maxBass = 0;
+            let avgBass = 0;
+
             if (analyser) {
                 analyser.getByteFrequencyData(frequencyData);
-                bass = frequencyData[0] * 0.5; // Reduced bass multiplier
-                let lowMid = frequencyData[2] * 0.3;
-                let mid = frequencyData[5] * 0.2;
-                let midHigh = frequencyData[7] * 0.1;
-                let high = frequencyData[10] * 0.05;
+                bass = frequencyData[0] * 500
+                let lowMid = frequencyData[2] * 100;
+                let mid = frequencyData[5] * 60;
+                let midHigh = frequencyData[7] * 40;
+                let high = frequencyData[10] * 25;
 
-                bassHistory.push(bass);
+                bassHistory.push(bass)
 
-                if (bassHistory.length > 30) {
-                    bassHistory.shift();
+                if (bass > maxBass) {
+                    maxBass = bass
                 }
 
-                // Calculate average bass
-                let avgBass = bassHistory.reduce((a, b) => a + b, 0) / bassHistory.length;
-                
-                // Smoother deformation factor calculation
-                let targetDeformation = (bass + lowMid + mid + midHigh + high) / 255.0;
-                targetDeformation = p.constrain(targetDeformation, 0, 0.8); // Limit max deformation
-                
-                // Apply smoothing
-                deformationFactor += (targetDeformation - deformationFactor) * 0.1;
+                if (bassHistory.length >= 30) {
+                    avgBass = bassHistory.reduce((x, y) => x + y);
+                    avgBass = avgBass / bassHistory.length;
+                    bassHistory.shift()
+                }
 
-                // Color changes
-                if (bass > avgBass * 1.5) {
-                    let targetRed = Math.max(255 - bass * 2, 0);
-                    let targetGreen = Math.max(255 - bass * 2, 0);
+                let bassThreshold = avgBass * 1.5
+                let smoothFactor = 0.1;
+                let bassTarget = bass * 2
+                let lightBassThreshold = maxBass * 0.8
+
+                //console.log(bass)
+                if (bass > lightBassThreshold) {
+                    //console.log("jioafsdjioadfjö")
+                    //console.log(bassThreshold)
+                    let targetRed = Math.max(255 - bass / 500 / 1.5, 0);
+                    let targetGreen = Math.max(255 - bass / 500 / 1.5, 0);
                     let targetBlue = 255;
 
-                    red = p.lerp(red, targetRed, 0.1);
-                    green = p.lerp(green, targetGreen, 0.1);
-                    blue = p.lerp(blue, targetBlue, 0.1);
-                } else {
-                    // Gradually return to white
-                    red = p.lerp(red, 255, 0.02);
-                    green = p.lerp(green, 255, 0.02);
-                    blue = p.lerp(blue, 255, 0.02);
+                    red = p.constrain(p.lerp(red, targetRed, 0.1), 0, 255);
+                    green = p.constrain(p.lerp(green, targetGreen, 0.1), 0, 255);
+                    blue = p.constrain(p.lerp(blue, targetBlue, 0.1), 0, 255);
+                    bass = p.lerp(bass, bassTarget, smoothFactor);
+                    //bass = bass * (1 - 0.05) + bassTarget * 0.05;
+
                 }
+                let smoothness = p.lerp(lowMid, mid, smoothFactor)
+
+                let targetDeformation = (bass + smoothness + lowMid + midHigh + high) / 255.0 * 2;
+
+                if (targetDeformation > deformationFactor) {
+                    deformationFactor = targetDeformation;
+                }
+                else {
+                    deformationFactor += (targetDeformation - deformationFactor) * 0.1;
+                }
+
+                //High frequnce transform calculation 
+
+                bounceFactor = (high) / 255 * 2;
+
             }
 
             for (let i = 0; i < particles.length; i++) {
                 let particle = particles[i];
-                
-                // Find closest dodecahedron vertex (normalized)
-                const [vx, vy, vz] = findClosestDodecahedronVertex(
-                    particle.originalX, 
-                    particle.originalY, 
-                    particle.originalZ
+
+                let noiseValue = p.noise(
+                    particle.theta * noiseScale,
+                    particle.phi * noiseScale,
+                    timeFactor
                 );
-                
-                // Calculate target position (scaled to our base radius)
-                particle.targetX = vx * baseRadius;
-                particle.targetY = vy * baseRadius;
-                particle.targetZ = vz * baseRadius;
-                
-                // Interpolate with constrained radius
-                let newX = p.lerp(particle.originalX, particle.targetX, deformationFactor);
-                let newY = p.lerp(particle.originalY, particle.targetY, deformationFactor);
-                let newZ = p.lerp(particle.originalZ, particle.targetZ, deformationFactor);
-                
-                // Ensure we don't exceed max radius
-                const currentRadius = Math.sqrt(newX*newX + newY*newY + newZ*newZ);
-                if (currentRadius > maxDeformationRadius) {
-                    const scaleFactor = maxDeformationRadius / currentRadius;
-                    newX *= scaleFactor;
-                    newY *= scaleFactor;
-                    newZ *= scaleFactor;
-                }
-                
-                // Add subtle noise during transition
-                if (deformationFactor > 0 && deformationFactor < 1) {
-                    const noiseAmount = 5 * deformationFactor * (1 - deformationFactor);
-                    newX += p.random(-noiseAmount, noiseAmount);
-                    newY += p.random(-noiseAmount, noiseAmount);
-                    newZ += p.random(-noiseAmount, noiseAmount);
-                }
-                
+
+                let PHIADJ = (1 / (p.sin(particle.phi) ^ (2 * p) + p.cos(particle.phi) ^ (2* p))) ^ (1 / 2 * p)
+                let THETAADJ = (1 / (p.sin(particle.theta) ^ (2 * p) + p.cos(particle.theta) ^ (2 * p))) ^ (1 / 2 * p)
+
+                //let deformation = p.map(noiseValue, 0, 1, deformationFactor, -deformationFactor);
+                let deformation = p.map(noiseValue, 0, -1, deformationFactor, deformationFactor);
+                let deformFactor = 1 + deformation * p.sin(particle.phi * 2) * p.cos(particle.theta * 2);
+                let liftFactor = 1 + particleDeform * p.sin(particle.phi * 3) * p.cos(particle.theta * 3);
+                let newRadius = radius + deformFactor;
+                newRadius += liftFactor * 8
+
+                let newX = 200 * p.sin(particle.theta) * p.cos(particle.phi) * PHIADJ * THETAADJ;
+                let newY = 200 * p.sin(particle.theta) * p.sin(particle.phi) * PHIADJ * THETAADJ;
+                let newZ = 200 * p.cos(particle.theta) * THETAADJ;
+                //high frequence transformation
+                particleDeform = p.map(noiseValue, 0, 1, -bounceFactor, bounceFactor)
+
+                let threshold = bass / 255 * 0.1;
+                let Intensity = 0;
+                let mappedIntense = p.map(Intensity, threshold, 0, 5, -threshold, threshold)
+                let liftedRadius = newRadius + liftFactor * 8
+               
+
                 p.vertex(newX, newY, newZ);
             }
 
-            p.stroke(red, green, blue);
+            p.stroke(red, green, blue)
             p.endShape(p.POINTS);
         };
-
         p.windowResized = () => {
             p.resizeCanvas(p.displayWidth, p.displayHeight);
         };

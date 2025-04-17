@@ -8,7 +8,7 @@ export default function createP5Sketch(containerId) {
     let bassAccumulator = 0;
 
     let particles = [];
-    let totalParticles = 10000;
+    let totalParticles = 50000;
     let radius = 200;
     let noiseScale = 0.2;
     let deformationFactor = 0;
@@ -35,7 +35,7 @@ export default function createP5Sketch(containerId) {
       p.angleMode(p.DEGREES);
 
       sound = new Howl({
-        src: ['src/assets/burnin.mp3'],
+        src: ['src/assets/dead.mp3'],
         volume: 0.5,
         loop: true,
         onload: setupAudioAnalyser,
@@ -92,7 +92,7 @@ export default function createP5Sketch(containerId) {
 
       p.scale(2);
       p.noFill();
-      p.strokeWeight(2);
+      p.strokeWeight(0.4);
 
       p.beginShape(p.POINTS);
 
@@ -134,7 +134,7 @@ export default function createP5Sketch(containerId) {
         if (bass > lightBassThreshold) {
           //console.log("jioafsdjioadfjö")
           //console.log(bassThreshold)
-          let targetRed = Math.max(255 - bass / 500 / 1.5, 0);
+          let targetRed = Math.max(190 - bass / 500 / 1.5, 0);
           let targetGreen = Math.max(255 - bass / 500 / 1.5, 0);
           let targetBlue = 255;
 
