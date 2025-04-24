@@ -1,58 +1,59 @@
-import p5 from 'p5'
+import p5 from 'p5';
 import { Howl, Howler } from 'howler';
 
 export default function createP5Sketch(containerId) {
   const sketch = (p) => {
-    let sound
-    let analyser, frequencyData;
-    let bassAccumulator = 0;
-
     let particles = [];
-    let totalParticles = 50000;
-    let radius = 200;
-    let noiseScale = 0.2;
-    let deformationFactor = 0;
-    let particleDeform = 0;
-    let bounceFactor = 0;
+    let totalParticles = 100000;
+    let radius = 350;
 
-    let theta;
-    let phi;
-    let x;
-    let y;
-    let z;
-
+    let sound;
+    let analyser, frequencyData;
     let bass = 0;
-
-    var red = 255;
-    var green = 255;
-    var blue = 255;
-
     let bassHistory = [];
+    let deformationFactor = 0;
+    let bounceFactor = 0;
+    let particleDeform = 0;
+
+    let bassPeak = 0;
+    let bassPeakDecay = 0.9;
+    let bassImpact = 0;
+
+    let waveMovement = 0;
+
+    let red = 255, green = 255, blue = 255;
 
     p.setup = () => {
-
       p.createCanvas(p.displayWidth, p.displayHeight, p.WEBGL).parent(containerId);
       p.angleMode(p.DEGREES);
+      p.noFill();
 
       sound = new Howl({
-        src: ['src/assets/dead.mp3'],
+        src: ['src/assets/beat.mp3'],
         volume: 0.5,
         loop: true,
-        onload: setupAudioAnalyser,
-
+        onload: setupAudioAnalyser
       });
 
-      for (let i = 0; i < totalParticles; i++) {
-        theta = p.random(0, 360);
-        phi = p.random(0, 360);
+      generateParticles();
+    };
 
-        x = radius * p.sin(theta) * p.cos(phi);
-        y = radius * p.sin(theta) * p.sin(phi);
-        z = radius * p.cos(theta);
+    function generateParticles() {
+      for (let i = 0; i < totalParticles; i++) {
+        let u = Math.random();
+        let v = Math.random();
+
+        let theta = 2 * Math.PI * u;
+        let phi = Math.acos(2 * v - 1);
+
+        let x = radius * Math.sin(phi) * Math.cos(theta);
+        let y = radius * Math.sin(phi) * Math.sin(theta);
+        let z = radius * Math.cos(phi);
 
         particles.push({ x, y, z, theta, phi });
       }
-    };
+    }
+
     function setupAudioAnalyser() {
       let audioCtx = Howler.ctx;
       analyser = audioCtx.createAnalyser();
@@ -63,142 +64,106 @@ export default function createP5Sketch(containerId) {
       frequencyData = new Uint8Array(analyser.frequencyBinCount);
     }
 
-
     p.mousePressed = () => {
       if (!sound) return;
 
-      if (sound.state() !== 'loaded') {
-        console.log('Sound noch nicht geladen');
-        return;
-      }
+      if (sound.state() !== 'loaded') return;
 
       Howler.ctx.resume().then(() => {
-        if (!sound.playing()) {
-          sound.play();
-          console.log('Sound gestartet');
-        } else {
-          sound.pause();
-          console.log('Sound pausiert');
-        }
+        if (!sound.playing()) sound.play();
+        else sound.pause();
       });
     };
 
     p.draw = () => {
-      let fastRotation = p.frameCount * 0.5
-
-      p.camera(200, -400, 800);
-      p.background(0, 0);
-      p.rotateY(fastRotation);
-
-      p.scale(2);
-      p.noFill();
-      p.strokeWeight(0.4);
-
-      p.beginShape(p.POINTS);
-
-
-      //p.stroke(100.8, 40, 255)
-
-      //p.stroke(r, g, b)
-
-      let timeFactor = p.frameCount * 0.01;
-      let maxBass = 0;
-      let avgBass = 0;
+      p.background(0);
+      p.rotateY(p.frameCount * 0.3);
 
       if (analyser) {
         analyser.getByteFrequencyData(frequencyData);
-        bass = frequencyData[0] * 500
+        bass = frequencyData[0] * 500;
         let lowMid = frequencyData[2] * 100;
         let mid = frequencyData[5] * 60;
         let midHigh = frequencyData[7] * 40;
         let high = frequencyData[10] * 25;
 
-        bassHistory.push(bass)
+        bassHistory.push(bass);
+        if (bassHistory.length > 30) bassHistory.shift();
 
-        if (bass > maxBass) {
-          maxBass = bass
+        let avgBass = bassHistory.reduce((a, b) => a + b, 0) / bassHistory.length;
+        let maxBass = Math.max(...bassHistory);
+        if (bass > avgBass * 1.2) {
+          bassImpact = p.map(bass - avgBass, 0, avgBass * 0.5, 0, 1, true);
+          bassPeak = bassImpact;
         }
+        bassPeak *= bassPeakDecay;
 
-        if (bassHistory.length >= 30) {
-          avgBass = bassHistory.reduce((x, y) => x + y);
-          avgBass = avgBass / bassHistory.length;
-          bassHistory.shift()
-        }
 
-        let bassThreshold = avgBass * 1.5
-        let smoothFactor = 0.1;
-        let bassTarget = bass * 2
-        let lightBassThreshold = maxBass * 0.8
 
-        //console.log(bass)
-        if (bass > lightBassThreshold) {
-          //console.log("jioafsdjioadfjö")
-          //console.log(bassThreshold)
-          let targetRed = Math.max(190 - bass / 500 / 1.5, 0);
-          let targetGreen = Math.max(255 - bass / 500 / 1.5, 0);
-          let targetBlue = 255;
+        let smoothness = p.lerp(lowMid, mid, 0.1);
+        let targetDeformation = (bass + smoothness + midHigh + high) / 255.0 * 3;
 
-          red = p.constrain(p.lerp(red, targetRed, 0.1), 0, 255);
-          green = p.constrain(p.lerp(green, targetGreen, 0.1), 0, 255);
-          blue = p.constrain(p.lerp(blue, targetBlue, 0.1), 0, 255);
-          bass = p.lerp(bass, bassTarget, smoothFactor);
-          //bass = bass * (1 - 0.05) + bassTarget * 0.05;
+        let stiffness = 0.3;
+        let damping = 0.7;
 
-        }
-        let smoothness = p.lerp(lowMid, mid, smoothFactor)
+        let velocity = 0;
+        let deformation = 0;
 
-        let targetDeformation = (bass + smoothness + lowMid + midHigh + high) / 255.0 * 2;
+        let force = (targetDeformation - deformation) * stiffness;
+        velocity = (velocity + force) * damping;
+        deformation += velocity;
 
-        if (targetDeformation > deformationFactor) {
-          deformationFactor = targetDeformation;
-        }
-        else {
-          deformationFactor += (targetDeformation - deformationFactor) * 0.1;
-        }
-
-        //High frequnce transform calculation 
+        deformationFactor = p.lerp(deformationFactor, bassPeak * 15, 0.05);
+        bounceFactor = p.lerp(bounceFactor, (frequencyData[10] / 255) * 1.5, 0.05);
 
         bounceFactor = (high) / 255 * 2;
 
+        waveMovement = Math.sin(p.frameCount * 0.02) * 20;
       }
 
+      p.stroke(red, green, blue);
+      p.strokeWeight(0.01);
+      p.beginShape(p.POINTS);
+
+      let timeFactor = p.frameCount * 0.01;
       for (let i = 0; i < particles.length; i++) {
         let particle = particles[i];
-
         let noiseValue = p.noise(
-          particle.theta * noiseScale,
-          particle.phi * noiseScale,
-          timeFactor
+          particle.theta * 5,
+          particle.phi * 5,
+          timeFactor * 1.2
         );
 
-        //let deformation = p.map(noiseValue, 0, 1, deformationFactor, -deformationFactor);
-        let deformation = p.map(noiseValue, 0, -1, deformationFactor, deformationFactor);
-        let deformFactor = 1 + deformation * p.sin(particle.phi * 2) * p.cos(particle.theta * 2);
-        let liftFactor = 1 + particleDeform * p.sin(particle.phi * 3) * p.cos(particle.theta * 3);
-        let newRadius = radius + deformFactor;
-        newRadius += liftFactor * 8
+        let noiseValue1 = p.noise(particle.theta * 5, particle.phi * 5, timeFactor);
+        let noiseValue2 = p.noise(particle.theta * 15, particle.phi * 15, timeFactor * 1.5);
+        let deform = (noiseValue1 * 0.6 + noiseValue2 * 0.4 - 0.5) * 2 * deformationFactor;
+        let lift = p.map(noiseValue, 0, 1, -bounceFactor, bounceFactor);
+        let waveFactor = Math.sin(particle.phi * 3 + timeFactor * 0.5) * waveMovement;
 
-        let newX = newRadius * p.sin(particle.theta) * p.cos(particle.phi);
-        let newY = newRadius * p.sin(particle.theta) * p.sin(particle.phi);
-        let newZ = newRadius * p.cos(particle.theta);
-        //high frequence transformation
-        particleDeform = p.map(noiseValue, 0, 1, -bounceFactor, bounceFactor)
+        let deformFactor = noiseValue * deform * Math.cos(particle.theta);
+        let liftFactor = 1 + lift * Math.sin(particle.phi * 3) * Math.cos(particle.theta * 3);
+        let maxDeformFactor = p.map(bass, 0, 500 * 500, 1, 4);
 
-     
-        let threshold = bass / 255 * 0.1;
-        let Intensity = 0;
-        let mappedIntense = p.map(Intensity, threshold, 0, 5, -threshold, threshold)
-        let liftedRadius = newRadius + liftFactor * 8
-        let liftedX = liftedRadius * p.sin(particle.theta) * p.cos(particle.phi);
-        let liftedY = liftedRadius * p.sin(particle.theta) * p.sin(particle.phi);
-        let liftedZ = liftedRadius * p.cos(particle.theta);
+        let newRadius = radius + deformFactor + liftFactor * 8 + waveFactor;
 
-        p.vertex(newX, newY, newZ);
+        if (bassImpact > 0.5) {
+          let centerPull = p.map(bassImpact, 0, 1, 0.5, 2);
+          newRadius * centerPull;
+        }
+        if (i % 3 == 0) {
+          newRadius * maxDeformFactor
+        }
+
+        let x = newRadius * Math.sin(particle.phi) * Math.cos(particle.theta);
+        let y = newRadius * Math.sin(particle.phi) * Math.sin(particle.theta);
+        let z = newRadius * Math.cos(particle.phi);
+
+        p.vertex(x, y, z);
       }
 
-      p.stroke(red, green, blue)
-      p.endShape(p.POINTS);
+      p.endShape();
     };
+
     p.windowResized = () => {
       p.resizeCanvas(p.displayWidth, p.displayHeight);
     };
